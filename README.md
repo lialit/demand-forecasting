@@ -1,3 +1,7 @@
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+![LightGBM](https://img.shields.io/badge/LightGBM-ML-success)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 # Demand Forecasting for Retail
 
 ## Project Status
