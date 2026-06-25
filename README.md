@@ -123,6 +123,10 @@ Compared to the strongest baseline model:
 These results demonstrate that feature engineering and gradient boosting substantially improve demand forecasting accuracy.
 ---
 
+## Model Comparison
+
+![Model Comparison](images/model_comparison.png)
+
 ## Future Work
 
 - Hyperparameter optimization
