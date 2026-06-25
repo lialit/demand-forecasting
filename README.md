@@ -1,3 +1,7 @@
+## Project Status
+
+✅ Completed
+
 # Demand Forecasting for Retail
 
 ## Business Problem
