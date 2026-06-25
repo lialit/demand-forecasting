@@ -79,13 +79,31 @@ Target variable:
 
 ## Results
 
-*(In progress)*
+The improved LightGBM model significantly outperformed both baseline forecasting approaches.
 
----
+| Model | MAE | RMSE |
+|------|----:|----:|
+| Naive Forecast (previous hour) | 8.72 | 17.07 |
+| Seasonal Naive Forecast (previous day) | 7.66 | 15.07 |
+| **LightGBM** | **2.13** | **6.23** |
+
+### Improvement over the best baseline
+
+- MAE improved by **72.15%**
+- RMSE improved by **58.63%**
+
+These improvements indicate that the model captures temporal demand patterns much more effectively than simple baseline approaches.
+**
 
 ## Business Recommendations
 
-*(In progress)*
+Based on the forecasting results, retailers can:
+
+- Reduce stock shortages by improving replenishment planning.
+- Decrease overstock and product waste.
+- Improve purchasing decisions using more accurate demand forecasts.
+- Optimize inventory levels across multiple dark stores.
+- Support supply chain planning with hourly demand predictions.
 
 ## Results
 
