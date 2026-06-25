@@ -87,6 +87,22 @@ Target variable:
 
 *(In progress)*
 
+## Results
+
+The LightGBM model significantly outperformed both baseline forecasting approaches.
+
+| Model | MAE | RMSE |
+|------|----:|----:|
+| Naive Forecast | 8.72 | 17.07 |
+| Seasonal Naive | 7.66 | 15.07 |
+| LightGBM | **2.13** | **6.23** |
+
+Compared to the strongest baseline model:
+
+- **72.15% lower MAE**
+- **58.63% lower RMSE**
+
+These results demonstrate that feature engineering and gradient boosting substantially improve demand forecasting accuracy.
 ---
 
 ## Future Work
