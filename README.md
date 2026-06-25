@@ -1,8 +1,10 @@
+# Demand Forecasting for Retail
+
 ## Project Status
 
 ✅ Completed
 
-# Demand Forecasting for Retail
+---
 
 ## Business Problem
 
@@ -31,7 +33,7 @@ The dataset contains historical hourly sales records together with operational a
 - Delivery delays
 - Customer app activity
 
-Target variable:
+**Target variable**
 
 - Sales
 
@@ -61,19 +63,57 @@ Target variable:
 
 ## Exploratory Data Analysis
 
-*(In progress)*
+The dataset was analyzed to identify:
+
+- Missing values
+- Sales seasonality
+- Daily and weekly demand patterns
+- Promotion effects
+- Inventory shortages
+- Relationships between price and demand
 
 ---
 
 ## Feature Engineering
 
-*(In progress)*
+The following features were created:
+
+- Hour
+- Day of week
+- Month
+- Weekend indicator
+- Price difference
+- Price ratio
+- Lag features (1h, 24h, 168h)
+- Rolling mean (24h)
+- Rolling standard deviation (24h)
 
 ---
 
 ## Model Development
 
-*(In progress)*
+The forecasting model was developed using **LightGBM**.
+
+The preprocessing pipeline includes:
+
+- Missing value handling
+- Time-based train/test split
+- Time feature extraction
+- Lag features
+- Rolling statistics
+- Price-based features
+- Stock-out (censored demand) analysis
+
+The model was evaluated using:
+
+- MAE (Mean Absolute Error)
+- RMSE (Root Mean Squared Error)
+
+---
+
+## Model Comparison
+
+![Model Comparison](images/model_comparison.png)
 
 ---
 
@@ -89,54 +129,59 @@ The improved LightGBM model significantly outperformed both baseline forecasting
 
 ### Improvement over the best baseline
 
-- MAE improved by **72.15%**
-- RMSE improved by **58.63%**
+- **MAE improved by 72.15%**
+- **RMSE improved by 58.63%**
 
-These improvements indicate that the model captures temporal demand patterns much more effectively than simple baseline approaches.
-**
+These results demonstrate that feature engineering together with a robust preprocessing pipeline substantially improves demand forecasting accuracy.
+
+---
 
 ## Business Recommendations
 
 Based on the forecasting results, retailers can:
 
-- Reduce stock shortages by improving replenishment planning.
+- Reduce stock shortages through more accurate replenishment planning.
 - Decrease overstock and product waste.
-- Improve purchasing decisions using more accurate demand forecasts.
+- Improve purchasing decisions using reliable hourly demand forecasts.
 - Optimize inventory levels across multiple dark stores.
-- Support supply chain planning with hourly demand predictions.
+- Support supply chain planning using data-driven demand predictions.
 
-## Results
-
-The LightGBM model significantly outperformed both baseline forecasting approaches.
-
-| Model | MAE | RMSE |
-|------|----:|----:|
-| Naive Forecast | 8.72 | 17.07 |
-| Seasonal Naive | 7.66 | 15.07 |
-| LightGBM | **2.13** | **6.23** |
-
-Compared to the strongest baseline model:
-
-- **72.15% lower MAE**
-- **58.63% lower RMSE**
-
-These results demonstrate that feature engineering and gradient boosting substantially improve demand forecasting accuracy.
 ---
 
-## Model Comparison
+## Project Structure
 
-![Model Comparison](images/model_comparison.png)
+```
+demand-forecasting/
+│
+├── data/
+├── dashboard/
+├── images/
+├── notebooks/
+├── src/
+│   ├── preprocessing.py
+│   ├── features.py
+│   └── metrics.py
+│
+├── README.md
+├── requirements.txt
+└── LICENSE
+```
 
-## Future Work
+---
+
+## Future Improvements
 
 - Hyperparameter optimization
-- Additional external features
+- Cross-validation for time-series forecasting
 - Power BI dashboard
 - Automated forecasting pipeline
+- Model deployment using cloud infrastructure
 
-  ## Author
+---
 
-Olena Havrylova
+## Author
+
+**Elena Havrylova**
 
 Google Cloud Professional Machine Learning Engineer
 
