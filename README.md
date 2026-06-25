@@ -181,7 +181,7 @@ demand-forecasting/
 
 ## Author
 
-**Elena Havrylova**
+**Olena Havrylova**
 
 Google Cloud Professional Machine Learning Engineer
 
