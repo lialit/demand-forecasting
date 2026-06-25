@@ -133,3 +133,11 @@ These results demonstrate that feature engineering and gradient boosting substan
 - Additional external features
 - Power BI dashboard
 - Automated forecasting pipeline
+
+  ## Author
+
+Olena Havrylova
+
+Google Cloud Professional Machine Learning Engineer
+
+Open to Data Analyst opportunities.
