@@ -1,3 +1,9 @@
+![Python](https://img.shields.io/badge/Python-3.11-blue)
+
+![LightGBM](https://img.shields.io/badge/LightGBM-4.x-green)
+
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
 # Demand Forecasting for Retail
 
 > Production-ready machine learning pipeline for hourly retail demand forecasting using LightGBM.
