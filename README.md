@@ -129,8 +129,11 @@ DemandForecasting/
 ---
 
 # Pipeline
+# Pipeline
 
-```
+![Pipeline Diagram](images/pipeline_diagram.png)
+
+```text
 Load Data
       │
       ▼
