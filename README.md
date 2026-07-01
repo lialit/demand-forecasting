@@ -1,8 +1,4 @@
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-
-![LightGBM](https://img.shields.io/badge/LightGBM-4.x-green)
-
-![License](https://img.shields.io/badge/License-MIT-yellow)
+![Python](https://img.shields.io/badge/Python-3.11-blue) ![LightGBM](https://img.shields.io/badge/LightGBM-4.x-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 # Demand Forecasting for Retail
 
@@ -314,5 +310,3 @@ notebooks/01_analytical_report.ipynb
 **Elena Havrylova**
 
 Google Cloud Professional Machine Learning Engineer
-
-Open to Data Analytics / Machine Learning opportunities.
