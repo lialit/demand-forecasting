@@ -36,7 +36,6 @@ The project includes:
 ### Missing Values
 
 ![Missing Values](images/missing_values.png)
-
 ## Key Results
 
 - ✅ Leakage-safe feature engineering
