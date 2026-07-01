@@ -27,7 +27,27 @@ The project includes:
 - business documentation.
 
 ---
+## Project Preview
 
+### Model Comparison
+
+![Model Comparison](images/comparison.png)
+
+### Daily Sales
+
+![Daily Sales](images/daily_sales.png)
+
+### Missing Values
+
+![Missing Values](images/missing_values.png)
+
+## Key Results
+
+- ✅ Leakage-safe feature engineering
+- ✅ 3-month backtest
+- ✅ LightGBM outperformed both naive baselines
+- ✅ MAE improvement: **72.15%**
+- ✅ RMSE improvement: **58.63%**
 # Business Problem
 
 Retail companies must accurately forecast future demand to maintain optimal inventory levels.
