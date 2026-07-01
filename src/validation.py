@@ -59,11 +59,12 @@ def evaluate_baselines(
 
 
 def future_permutation_test(
-    feature_df: pd.DataFrame,
+    raw_df: pd.DataFrame,
+    feature_builder,
     suspicious_columns: list[str] | None = None,
     random_state: int = 42,
 ) -> dict:
-    """Check that historical features do not change after future permutation."""
+    """Test whether future target permutation changes historical features."""
     if suspicious_columns is None:
         suspicious_columns = [
             "sales_lag_1h",
@@ -73,10 +74,11 @@ def future_permutation_test(
             "sales_rolling_std_24h",
         ]
 
-    df_original = feature_df.sort_values("timestamp").reset_index(drop=True)
+    df_original = raw_df.sort_values("timestamp").reset_index(drop=True).copy()
     split_index = int(len(df_original) * 0.8)
 
-    historical_original = df_original.loc[
+    original_features = feature_builder(df_original)
+    historical_original = original_features.loc[
         : split_index - 1,
         suspicious_columns,
     ].copy()
@@ -89,21 +91,28 @@ def future_permutation_test(
         df_permuted.loc[future_index, "sales"].values
     )
 
-    historical_after_permutation = df_permuted.loc[
+    permuted_features = feature_builder(df_permuted)
+    historical_permuted = permuted_features.loc[
         : split_index - 1,
         suspicious_columns,
     ].copy()
 
-    passed = historical_original.equals(historical_after_permutation)
+    differences = (
+        historical_original.fillna(-999999)
+        != historical_permuted.fillna(-999999)
+    ).sum().sum()
+
+    passed = differences == 0
 
     return {
         "test_name": "Future Permutation Test",
         "passed": bool(passed),
         "checked_columns": suspicious_columns,
+        "changed_values_count": int(differences),
         "explanation": (
-            "Historical feature values did not change after future target "
-            "permutation."
+            "Historical lag and rolling features remained unchanged after "
+            "rebuilding features with permuted future target values."
             if passed
-            else "Historical feature values changed after future permutation."
+            else "Historical features changed after future target permutation."
         ),
     }

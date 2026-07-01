@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+*.pkl
+models/archive/
+
+data/*.csv
+
+.DS_Store
+Thumbs.db

@@ -1,192 +1,292 @@
-![Python](https://img.shields.io/badge/Python-3.11-blue)
-![LightGBM](https://img.shields.io/badge/LightGBM-ML-success)
-![License](https://img.shields.io/badge/License-MIT-green)
-
 # Demand Forecasting for Retail
 
-## Project Status
-
-✅ Completed
+> Production-ready machine learning pipeline for hourly retail demand forecasting using LightGBM.
 
 ---
 
-## Business Problem
+## Project Overview
 
-Retail companies must accurately forecast product demand to maintain optimal inventory levels.
+This project was developed as a production-oriented demand forecasting solution for a dark store retail network.
 
-Overestimating demand increases storage costs and product waste.
+The objective is to predict hourly product demand for every **Store × Product** combination while preventing time-series data leakage and supporting inventory planning.
 
-Underestimating demand leads to stock shortages, lost sales, and dissatisfied customers.
+The project includes:
 
-This project develops a machine learning solution to forecast hourly product demand for each product at every dark store location. The resulting forecasts can support inventory planning, purchasing decisions, and supply chain optimization.
+- modular Python pipeline;
+- feature engineering;
+- stock-out (censored demand) handling;
+- time-based backtesting;
+- baseline comparison;
+- leakage validation;
+- business documentation.
 
 ---
 
-## Dataset
+# Business Problem
 
-The dataset contains historical hourly sales records together with operational and external factors, including:
+Retail companies must accurately forecast future demand to maintain optimal inventory levels.
+
+Poor forecasts create two major business risks:
+
+### Under-forecasting
+
+- stock shortages
+- lost sales
+- dissatisfied customers
+
+### Over-forecasting
+
+- excessive inventory
+- higher storage costs
+- product waste
+
+The goal of this project is to provide reliable hourly demand forecasts for purchasing and replenishment planning.
+
+---
+
+# Dataset
+
+The dataset contains historical hourly observations including:
 
 - Product ID
 - Store ID
 - Timestamp
 - Temperature
-- Promotions
-- Competitor prices
-- Stock availability
 - Local events
-- Delivery delays
-- Customer app activity
+- Product price
+- Promotions
+- Competitor price
+- Delivery delay
+- Holiday factor
+- App clicks
+- Stock on hand
 
-**Target variable**
+Target variable:
 
 - Sales
+- Demand Proxy (after stock-out adjustment)
 
 ---
 
-## Project Objectives
+# Project Structure
 
-- Explore historical sales patterns
-- Perform feature engineering
-- Build forecasting models
-- Compare model performance with baseline methods
-- Generate business recommendations based on forecasting results
+```text
+DemandForecasting/
+│
+├── data/
+│   └── demand_train_val_1.5years.csv
+│
+├── images/
+│
+├── models/
+│   └── archive/
+│
+├── notebooks/
+│   └── 01_analytical_report.ipynb
+│
+├── reports/
+│   ├── business_executive_summary.md
+│   └── leakage_test_report.md
+│
+├── src/
+│   ├── __init__.py
+│   ├── data_loading.py
+│   ├── preprocessing.py
+│   ├── features.py
+│   ├── decensoring.py
+│   ├── training.py
+│   ├── inference.py
+│   ├── validation.py
+│   └── metrics.py
+│
+├── requirements.txt
+├── README.md
+├── LICENSE
+└── .gitignore
+```
 
 ---
 
-## Technologies
+# Pipeline
 
-- Python
-- Pandas
-- NumPy
-- Scikit-learn
-- LightGBM
-- Matplotlib
-- Jupyter Notebook
+```
+Load Data
+      │
+      ▼
+Schema Validation
+      │
+      ▼
+Data Cleaning
+      │
+      ▼
+Feature Engineering
+      │
+      ▼
+Stock-out Detection
+      │
+      ▼
+Demand Proxy Creation
+      │
+      ▼
+Time-based Split
+      │
+      ▼
+LightGBM Training
+      │
+      ▼
+Model Evaluation
+      │
+      ▼
+Business Report
+```
 
 ---
 
-## Exploratory Data Analysis
+# Feature Engineering
 
-The dataset was analyzed to identify:
+The model uses several feature groups.
 
-- Missing values
-- Sales seasonality
-- Daily and weekly demand patterns
-- Promotion effects
-- Inventory shortages
-- Relationships between price and demand
-
----
-
-## Feature Engineering
-
-The following features were created:
+### Time Features
 
 - Hour
 - Day of week
 - Month
 - Weekend indicator
+
+### Pricing Features
+
 - Price difference
 - Price ratio
-- Lag features (1h, 24h, 168h)
-- Rolling mean (24h)
-- Rolling standard deviation (24h)
+
+### Lag Features
+
+- Previous hour
+- Previous day
+- Previous week
+
+### Rolling Statistics
+
+- Rolling mean
+- Rolling standard deviation
+
+All rolling statistics are calculated after **shift(1)** to avoid future leakage.
 
 ---
 
-## Model Development
+# Stock-out Handling
 
-The forecasting model was developed using **LightGBM**.
+Observed sales are not always equal to real customer demand.
 
-The preprocessing pipeline includes:
+When
 
-- Missing value handling
-- Time-based train/test split
-- Time feature extraction
-- Lag features
-- Rolling statistics
-- Price-based features
-- Stock-out (censored demand) analysis
+```
+stock_on_hand = 0
+```
 
-The model was evaluated using:
+customers cannot buy additional products.
 
-- MAE (Mean Absolute Error)
-- RMSE (Root Mean Squared Error)
+The pipeline therefore:
 
----
-
-## Model Comparison
-
-![Model Comparison](images/model_comparison.png)
+- detects stock-out observations;
+- creates `is_stockout`;
+- builds a conservative `demand_proxy`;
+- trains the model using adjusted demand.
 
 ---
 
-## Results
+# Model
 
-The improved LightGBM model significantly outperformed both baseline forecasting approaches.
+Model:
+
+**LightGBM Regressor**
+
+Evaluation strategy:
+
+- Time-based split
+- 3-month backtest
+
+Evaluation metrics:
+
+- MAE
+- RMSE
+
+---
+
+# Baseline Comparison
 
 | Model | MAE | RMSE |
 |------|----:|----:|
-| Naive Forecast (previous hour) | 8.72 | 17.07 |
-| Seasonal Naive Forecast (previous day) | 7.66 | 15.07 |
+| Naive Forecast | 8.72 | 17.07 |
+| Seasonal Naive Forecast | 7.66 | 15.07 |
 | **LightGBM** | **2.13** | **6.23** |
 
-### Improvement over the best baseline
+### Improvement
 
-- **MAE improved by 72.15%**
-- **RMSE improved by 58.63%**
-
-These results demonstrate that feature engineering together with a robust preprocessing pipeline substantially improves demand forecasting accuracy.
+- **MAE:** +72.15%
+- **RMSE:** +58.63%
 
 ---
 
-## Business Recommendations
+# Leakage Validation
 
-Based on the forecasting results, retailers can:
+The project includes a **Future Permutation Test**.
 
-- Reduce stock shortages through more accurate replenishment planning.
-- Decrease overstock and product waste.
-- Improve purchasing decisions using reliable hourly demand forecasts.
-- Optimize inventory levels across multiple dark stores.
-- Support supply chain planning using data-driven demand predictions.
+The validation confirms that:
+
+- lag features use only historical observations;
+- rolling statistics do not depend on future values;
+- historical features remain unchanged after future target permutation.
+
+Result:
+
+✅ **Leakage Test Passed**
 
 ---
 
-## Project Structure
+# Business Impact
+
+The proposed solution can help retailers:
+
+- reduce stockouts;
+- reduce overstocking;
+- improve purchasing decisions;
+- optimize replenishment;
+- improve inventory planning.
+
+---
+
+# Technologies
+
+- Python
+- Pandas
+- NumPy
+- LightGBM
+- Scikit-learn
+- Matplotlib
+- Jupyter Notebook
+
+---
+
+# Reproducibility
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run:
 
 ```
-demand-forecasting/
-│
-├── data/
-├── dashboard/
-├── images/
-├── notebooks/
-├── src/
-│   ├── preprocessing.py
-│   ├── features.py
-│   └── metrics.py
-│
-├── README.md
-├── requirements.txt
-└── LICENSE
+notebooks/01_analytical_report.ipynb
 ```
 
 ---
 
-## Future Improvements
+# Author
 
-- Hyperparameter optimization
-- Cross-validation for time-series forecasting
-- Power BI dashboard
-- Automated forecasting pipeline
-- Model deployment using cloud infrastructure
-
----
-
-## Author
-
-**Olena Havrylova**
+**Elena Havrylova**
 
 Google Cloud Professional Machine Learning Engineer
 
-Open to Data Analyst opportunities.
+Open to Data Analytics / Machine Learning opportunities.
