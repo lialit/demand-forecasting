@@ -1,6 +1,17 @@
 [![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ТВОЯ-АДРЕСА.streamlit.app)
 ![Python](https://img.shields.io/badge/Python-3.11-blue) ![LightGBM](https://img.shields.io/badge/LightGBM-4.x-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
+## Interactive Dashboard
+
+The project includes a multipage Streamlit analytics application:
+
+- Executive Overview
+- Model Performance
+- Business Insights
+- Automated business observations
+
+[Open the live dashboard](https://demand-forecasting-nxky4bbby5tkusdxybtn43.streamlit.app/)
+
 # Demand Forecasting for Retail
 
 > Production-ready machine learning pipeline for hourly retail demand forecasting using LightGBM.
