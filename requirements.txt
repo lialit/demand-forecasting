@@ -1,4 +1,5 @@
-
+streamlit>=1.59,<2
+plotly>=6.0,<7
 pandas
 numpy
 scikit-learn
