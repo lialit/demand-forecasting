@@ -1,3 +1,4 @@
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://ТВОЯ-АДРЕСА.streamlit.app)
 ![Python](https://img.shields.io/badge/Python-3.11-blue) ![LightGBM](https://img.shields.io/badge/LightGBM-4.x-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 # Demand Forecasting for Retail
