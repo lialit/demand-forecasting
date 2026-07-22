@@ -18,6 +18,7 @@ from app_utils.insights import generate_business_insights
 from app_utils.loader import load_dashboard_data
 from app_utils.metrics import (
     calculate_executive_metrics,
+    compact_number,
     daily_metric_series,
     period_delta,
 )
@@ -49,14 +50,25 @@ stockout_delta = period_delta(
     "mean",
 )
 
+sales_delta_text = (
+    f"{sales_delta:+.1%}"
+    if sales_delta is not None
+    else None
+)
+
+stockout_delta_text = (
+    f"{stockout_delta:+.1%}"
+    if stockout_delta is not None
+    else None
+)
+
 columns = st.columns(5)
 
 columns[0].metric(
     label="💰 Total Sales",
-    value=metrics.total_sales,
-    delta=sales_delta,
+    value=compact_number(metrics.total_sales),
+    delta=sales_delta_text,
     delta_description="selected-period trend",
-    format="compact",
     chart_data=daily_metric_series(
         filtered,
         "sales",
@@ -70,8 +82,7 @@ columns[0].metric(
 
 columns[1].metric(
     label="📈 Average Sales",
-    value=metrics.average_sales,
-    format="%.2f",
+    value=f"{metrics.average_sales:.2f}",
     chart_data=daily_metric_series(
         filtered,
         "sales",
@@ -85,11 +96,10 @@ columns[1].metric(
 
 columns[2].metric(
     label="⚠️ Stock-out Rate",
-    value=metrics.stockout_rate,
-    delta=stockout_delta,
+    value=f"{metrics.stockout_rate:.2%}",
+    delta=stockout_delta_text,
     delta_description="selected-period trend",
     delta_color="inverse",
-    format="percent",
     chart_data=daily_metric_series(
         filtered,
         "is_stockout",
@@ -103,8 +113,7 @@ columns[2].metric(
 
 columns[3].metric(
     label="🎁 Promotion Rate",
-    value=metrics.promotion_rate,
-    format="percent",
+    value=f"{metrics.promotion_rate:.2%}",
     chart_data=daily_metric_series(
         filtered,
         "is_promo",
@@ -118,8 +127,7 @@ columns[3].metric(
 
 columns[4].metric(
     label="🌡️ Average Temperature",
-    value=metrics.average_temperature,
-    format="%.1f °C",
+    value=f"{metrics.average_temperature:.1f} °C",
     chart_data=daily_metric_series(
         filtered,
         "temperature",
