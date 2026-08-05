@@ -8,5 +8,8 @@ models/archive/
 
 data/*.csv
 
+artifacts/*
+!artifacts/.gitkeep
+
 .DS_Store
 Thumbs.db
