@@ -65,8 +65,11 @@ columns[0].metric(
 )
 
 columns[1].metric(
-    label="Typical demand per record",
+    label="Average demand per store-product-hour",
     value=f"{metrics.average_sales:.2f} units",
+    delta="Reference value",
+    delta_description="average across the selected period",
+    delta_color="off",
     help=(
         "Average observed sales for one store-product-hour record in the "
         "selected period."
