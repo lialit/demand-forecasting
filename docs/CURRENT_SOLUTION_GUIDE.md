@@ -1,196 +1,74 @@
 # Current Solution Architecture and Code Guide
 
-This document describes the demand forecasting solution **as it is currently implemented** in the repository. It is intended to help developers and stakeholders understand where data preparation, feature engineering, model training, evaluation, validation, inference and dashboard preparation take place.
+This document describes the solution **as it is currently implemented**. It separates the working local prototype from the recommended Google Cloud production target.
 
-> Scope note: this repository is currently a production-oriented prototype. It contains modular ML components and an interactive dashboard, but it does not yet include a complete production orchestration, automated retraining, drift monitoring, model registry or deployment pipeline.
+## 1. Current end-to-end flow
 
-## 1. End-to-end flow
-
-```text
-Raw CSV
-   ↓
-src/data_loading.py
-   ↓
-src/preprocessing.py
-   ↓
-src/features.py
-   ↓
-src/decensoring.py
-   ↓
-src/validation.py
-   ↓
-src/training.py
-   ↓
-src/metrics.py
-   ↓
-src/inference.py
-   ↓
-dashboard/build_dashboard_dataset.py
-   ↓
-Streamlit application
+```mermaid
+flowchart TD
+    A[Historical CSV] --> B[src/data_loading.py]
+    B --> C[src/preprocessing.py]
+    C --> D[src/features.py]
+    D --> E[src/decensoring.py]
+    E --> F[src/validation.py]
+    F --> G[src/training.py]
+    G --> H[src/metrics.py]
+    G --> I[Prediction dataframe]
+    H --> J[artifacts/model_metrics.json]
+    I --> K[artifacts/model_predictions.csv]
+    J --> L[Streamlit Forecast Accuracy page]
+    K --> L
+    C --> M[dashboard/build_dashboard_dataset.py]
+    M --> N[Business Overview and Demand Drivers]
 ```
 
 ## 2. Module responsibilities
 
 ### `src/data_loading.py`
 
-Responsible for loading the source CSV and validating the basic input schema.
+- `load_data(path)` reads the CSV and parses `timestamp`.
+- `validate_schema(df)` verifies required columns and valid timestamps.
 
-Main functions:
-
-- `load_data(path)`
-  - reads the CSV file;
-  - parses `timestamp` as datetime;
-  - raises `FileNotFoundError` when the file does not exist.
-- `validate_schema(df)`
-  - checks that all required source columns are present;
-  - checks that `timestamp` values were parsed successfully.
-
-Current validation is limited to required columns and timestamps. It does not yet validate numeric ranges, duplicates, negative values, hourly continuity or key uniqueness.
+The current schema check does not yet validate numeric ranges, duplicates, missing hours or key uniqueness.
 
 ### `src/preprocessing.py`
 
-Responsible for cleaning, chronological ordering, stock-out detection and basic time-based splitting.
-
-Main functions:
-
-- `clean_data(df)`
-  - fills missing temperature with the global median;
-  - fills missing competitor price with the product's own price;
-  - uses neutral defaults for app clicks, holidays, delays and local events.
-- `sort_time_series(df)`
-  - sorts rows by `store_id`, `product_id` and `timestamp`.
-- `add_stockout_flag(df)`
-  - creates `is_stockout = 1` when `stock_on_hand <= 0`.
-- `time_based_split(df, test_size=0.2)`
-  - performs one chronological train/test split.
-
-The missing-value strategy is feature-specific. It is not a universal median-imputation pipeline.
+- `clean_data(df)` applies feature-specific missing-value rules.
+- `sort_time_series(df)` sorts by store, product and time.
+- `add_stockout_flag(df)` creates `is_stockout` when stock is zero or below.
+- `time_based_split(df)` provides a generic chronological split helper.
 
 ### `src/features.py`
 
-Responsible for feature engineering.
+Creates:
 
-Calendar features:
+- calendar features: `hour`, `day_of_week`, `month`, `is_weekend`;
+- price features: `price_diff`, `price_ratio`;
+- lags: 1, 24 and 168 hours;
+- 24-hour rolling mean and standard deviation.
 
-- `hour`
-- `day_of_week`
-- `month`
-- `is_weekend`
-
-Price features:
-
-- `price_diff = price - competitor_price`
-- `price_ratio = price / competitor_price`
-
-Historical sales features, created separately for each `store_id` and `product_id` pair:
-
-- `sales_lag_1h`
-- `sales_lag_24h`
-- `sales_lag_168h`
-- `sales_rolling_mean_24h`
-- `sales_rolling_std_24h`
-
-Lag and rolling features use `shift(1)`, so the current target value is not used as its own feature.
-
-Missing historical values are currently filled with zero. This is a simple cold-start fallback and may not be optimal for new stores or products.
+Lag and rolling features use `shift(1)`, so the current target does not become its own feature. Initial unavailable history is filled with zero, which is a simple cold-start fallback.
 
 ### `src/decensoring.py`
 
-Responsible for creating a conservative demand proxy during stock-out periods.
+`create_demand_proxy(df)` keeps observed sales under normal conditions and uses the greater of observed sales and the recent rolling mean during stock-outs.
 
-Main function:
-
-- `create_demand_proxy(df)`
-
-Logic:
-
-```text
-Normal observation:
-    demand_proxy = sales
-
-Stock-out observation:
-    demand_proxy = max(sales, recent 24-hour rolling mean)
-```
-
-This is a business heuristic intended to reduce underestimation of demand when sales are constrained by unavailable stock. It is not a statistically identified estimate of true hidden demand.
-
-Additional function:
-
-- `summarize_censoring(df)`
-  - returns total rows, stock-out rows and stock-out share.
+This is a conservative business heuristic, not observed ground truth.
 
 ### `src/validation.py`
 
-Responsible for time-based validation helpers, baseline forecasts and a leakage-oriented test.
+- `get_three_month_backtest_split(df)` uses the last three calendar months as one holdout period.
+- `create_naive_baselines(...)` creates previous-hour and previous-day forecasts.
+- `evaluate_baselines(...)` calculates baseline MAE and RMSE.
+- `future_permutation_test(...)` checks that changing future sales does not alter historical lag and rolling features.
 
-Main functions:
-
-- `get_three_month_backtest_split(df, months=3)`
-  - uses the final three calendar months as the test period;
-  - this is one time-based holdout, not a multi-fold walk-forward backtest.
-- `create_naive_baselines(test_df)`
-  - creates previous-hour and previous-day forecasts.
-- `evaluate_baselines(test_df)`
-  - calculates MAE and RMSE for the two baselines.
-- `future_permutation_test(raw_df, feature_builder)`
-  - permutes future sales;
-  - rebuilds lag and rolling features;
-  - verifies that historical feature values remain unchanged.
-
-The permutation test checks the historical stability of lag and rolling features. It does not prove the absence of every possible form of leakage.
-
-Current baseline limitation:
-
-- baselines are created inside the test set;
-- initial missing lags are filled with the median of test-set sales;
-- a more rigorous implementation should build baselines on the combined train and test chronology and evaluate only test rows.
+The current validation is one time-based holdout, not multi-fold walk-forward validation.
 
 ### `src/training.py`
 
-Responsible for selecting features, training the LightGBM model, generating predictions and calculating metrics.
+Defines the model features, trains LightGBM, generates predictions and calls metric evaluation.
 
-#### Feature set
-
-The current model uses the following columns:
-
-```text
-store_id
-product_id
-temperature
-local_event_factor
-price
-is_promo
-competitor_price
-delivery_delay_hours
-holiday_factor
-app_clicks
-stock_on_hand
-hour
-day_of_week
-month
-is_weekend
-price_diff
-price_ratio
-sales_lag_1h
-sales_lag_24h
-sales_lag_168h
-sales_rolling_mean_24h
-sales_rolling_std_24h
-is_stockout
-```
-
-#### Target
-
-The default target is:
-
-```text
-demand_proxy
-```
-
-#### Model training
-
-The model is currently created in `train_lightgbm_model()`:
+Current LightGBM configuration:
 
 ```python
 lgb.LGBMRegressor(
@@ -203,202 +81,143 @@ lgb.LGBMRegressor(
 )
 ```
 
-Training happens here:
+Training:
 
 ```python
 model.fit(X_train, y_train)
 ```
 
-Prediction happens here:
+Prediction:
 
 ```python
 predictions = model.predict(X_test)
 ```
 
-Evaluation happens here:
-
-```python
-metrics = evaluate_predictions(y_test, predictions)
-```
-
-The LightGBM parameters are manually defined as a stable project configuration. They are not the output of a documented hyperparameter-optimization process.
-
-#### Returned outputs
-
 `train_and_evaluate()` returns:
 
-1. the trained model;
-2. a metrics dictionary;
-3. a prediction dataframe with timestamp, store, product, target and prediction.
+1. trained model;
+2. MAE/RMSE dictionary;
+3. dataframe containing `timestamp`, `store_id`, `product_id`, `actual_demand`, `predicted_demand` and `forecast_error`.
 
-The model type is currently hardcoded to LightGBM. A future refactor should move model construction to a configurable model factory.
+The model type is still hardcoded to LightGBM. A configurable model factory remains a future improvement.
 
 ### `src/metrics.py`
 
-Responsible for regression metrics and comparison with baselines.
-
-Main functions:
-
-- `evaluate_predictions(y_true, y_pred)`
-  - calculates MAE;
-  - calculates RMSE.
-- `calculate_improvement(baseline_score, model_score)`
-  - calculates percentage improvement over a baseline.
-
-Metrics are currently rounded inside the metric function. A future improvement is to preserve full precision in artifacts and round only in the presentation layer.
+- `evaluate_predictions(...)` calculates MAE and RMSE.
+- `calculate_improvement(...)` calculates percentage improvement over a baseline.
 
 ### `src/inference.py`
 
-Provides a reusable inference helper.
+`predict_demand(...)` is a reusable prediction helper. It is not yet a complete deployed inference service.
 
-Main function:
+### `scripts/run_model_pipeline.py`
 
-- `predict_demand(model, feature_df, feature_columns)`
-  - selects model features;
-  - calls `model.predict()`;
-  - returns `timestamp`, `store_id`, `product_id` and `predicted_demand`.
+This is the executable model pipeline. It:
 
-This is not yet a complete production inference pipeline. It does not load a persisted model, validate incoming data, build features, save forecasts or support recursive long-horizon forecasting.
+1. loads and validates source data;
+2. cleans and sorts records;
+3. creates stock-out flags, features and demand proxy;
+4. creates the final three-month holdout;
+5. trains LightGBM;
+6. evaluates baselines and leakage;
+7. saves model metrics and predictions.
+
+Generated artifacts:
+
+```text
+artifacts/model_metrics.json
+artifacts/model_predictions.csv
+```
 
 ### `dashboard/build_dashboard_dataset.py`
 
-Builds the dataset used by the business dashboard.
+Builds the historical dataset used by Business Overview and Demand Drivers.
 
-The current dashboard dataset contains historical and business-analysis fields such as:
+### `app_utils/model_artifacts.py`
 
-- `sales`
-- `demand_proxy`
-- `stock_on_hand`
-- `is_stockout`
-- `temperature`
-- `price`
-- `competitor_price`
-- `is_promo`
-- calendar fields
+Loads and validates the generated metrics and prediction artifacts for the dashboard.
 
-Current limitation:
+### `app_utils/forecast_charts.py`
 
-- the dashboard dataset does not include model predictions;
-- therefore Actual vs Predicted cannot be produced from the current dashboard file alone.
-
-### `app_utils/config.py`
-
-Contains dashboard paths and manually defined model results.
-
-Current model metrics and improvement percentages are hardcoded. If the model, data, features or validation period changes, the dashboard will continue to display old values until they are manually edited.
-
-A future pipeline should save metrics as an artifact and load them dynamically.
+Builds the Actual vs Predicted chart with hourly and daily aggregation.
 
 ### `views/model_performance.py`
 
-Displays:
+The Forecast Accuracy page displays:
 
-- LightGBM MAE and RMSE;
+- dynamically loaded MAE and RMSE;
+- Actual vs Predicted;
+- store and product filters;
+- hourly/daily aggregation;
+- local MAE, RMSE and forecast bias;
 - baseline comparison;
-- improvement percentages;
-- Future Permutation Test message;
-- validation notes.
+- leakage result;
+- business interpretation, limitations and retraining guidance.
 
-Current limitations:
+## 3. Feature set and target
 
-- metrics are static;
-- there is no Actual vs Predicted chart;
-- there are no store/product filters;
-- there are no local metrics for a selected slice;
-- labels are tied specifically to LightGBM.
+The current model uses store/product identifiers, weather and event factors, prices, promotion, delivery delay, holidays, app clicks, stock level, calendar variables, price relationships, lags, rolling statistics and stock-out status.
 
-## 3. Current forecasting scenario
+Default target:
 
-The use of historical lags inside the test period is closest to a rolling one-step-ahead scenario:
+```text
+demand_proxy
+```
 
-> New actual sales arrive over time, and the next forecast is refreshed using the latest observed history.
+## 4. Forecasting scenario
 
-It is not yet a strict multi-step forecast for an entire future week or month, because future lag values inside such a horizon would not be available without recursive prediction.
+The use of observed lag values inside the holdout is closest to a rolling one-step-ahead scenario in which new sales arrive over time and the next forecast is refreshed.
 
-This distinction should be stated when presenting model performance.
+It is not yet a strict recursive multi-step forecast for an entire future week or month.
 
-## 4. Meaning of the current metrics
+## 5. Business meaning of metrics
 
-### MAE
+- **MAE** is the typical forecast miss in product units.
+- **RMSE** reacts more strongly to occasional large misses.
+- **Forecast bias** shows persistent overforecasting or underforecasting.
+- **Baseline improvement** shows value relative to simple planning rules, not direct financial savings.
 
-MAE measures the average absolute difference between predicted and target demand.
+An MAE of 2.13 means an average difference of about two units for one store-product-hour observation. The practical importance varies by product volume, margin, shelf life and service-level requirements.
 
-Business interpretation:
+## 6. Current strengths
 
-> An MAE of 2.13 means that the forecast differs from the demand proxy by about 2.13 product units on average for one product-store-hour observation.
-
-### RMSE
-
-RMSE penalizes large forecast errors more strongly than MAE.
-
-Business interpretation:
-
-> A materially larger RMSE than MAE indicates that the model sometimes makes larger errors, for example during peaks, unusual events or difficult stock-out periods.
-
-### Improvement over baseline
-
-Improvement values compare the model with simple previous-hour or previous-day forecasts.
-
-They describe relative predictive improvement, not direct financial savings. Financial impact requires additional business inputs such as margin, spoilage cost, stock-out cost and service-level targets.
-
-## 5. Current strengths
-
-- modular data-processing code;
-- chronological splitting instead of random splitting;
-- explicit feature list;
-- lag and rolling features shifted to avoid direct target leakage;
+- modular Python code;
+- chronological validation;
+- shifted lag and rolling features;
 - baseline comparison;
+- leakage-oriented validation;
 - conservative stock-out adjustment;
-- separate training, metrics and inference modules;
-- interactive Streamlit dashboard;
-- prediction dataframe already produced by training.
+- reproducible model artifacts;
+- dynamic Actual vs Predicted dashboard;
+- business-facing metric explanations;
+- documented Google Cloud production direction.
 
-## 6. Current limitations
+## 7. Current limitations
 
-- one three-month holdout rather than full walk-forward validation;
-- baseline initialization uses test-set median values;
-- no explicit recursive multi-step forecasting;
-- demand proxy is heuristic rather than observed ground truth;
-- LightGBM is hardcoded in training;
-- model parameters are manually selected;
-- metrics are hardcoded in dashboard config;
-- predictions are not included in the dashboard dataset;
-- no central executable training pipeline;
-- no experiment tracking, model registry or automated retraining;
-- no drift monitoring;
-- no production API or scheduled batch-prediction workflow.
-
-## 7. Recommended next changes
-
-1. Save predictions and metrics as reproducible artifacts.
-2. Add Actual vs Predicted to the dashboard.
-3. Load dashboard metrics dynamically instead of hardcoding them.
-4. Correct baseline generation across train and test chronology.
-5. Replace model-specific training with a configurable model factory.
-6. Clarify the forecasting horizon and evaluation scenario.
-7. Either implement true walk-forward validation or consistently describe the current method as a three-month time-based holdout.
-8. Update README wording to match the implemented solution.
-9. Add business-oriented interpretations and limitations to the dashboard.
-10. Define a future Google Cloud batch-inference and retraining architecture.
+- synthetic data;
+- one three-month holdout rather than multi-fold walk-forward validation;
+- heuristic demand proxy;
+- baseline initialization could be made more rigorous across train/test chronology;
+- no recursive long-horizon forecasting;
+- manually selected LightGBM parameters;
+- LightGBM is not yet selected through a configurable model factory;
+- limited cold-start handling;
+- no deployed model registry, drift monitoring or automated retraining yet.
 
 ## 8. Quick code navigation
 
 | Question | Location |
 |---|---|
-| Where is the CSV loaded? | `src/data_loading.py::load_data` |
-| Where is the schema checked? | `src/data_loading.py::validate_schema` |
+| Where is data loaded? | `src/data_loading.py::load_data` |
 | Where are missing values handled? | `src/preprocessing.py::clean_data` |
-| Where is stock-out detected? | `src/preprocessing.py::add_stockout_flag` |
-| Where are lag features built? | `src/features.py::create_lag_features` |
-| Where is the demand proxy created? | `src/decensoring.py::create_demand_proxy` |
-| Where is the final three-month split created? | `src/validation.py::get_three_month_backtest_split` |
-| Where are baseline forecasts created? | `src/validation.py::create_naive_baselines` |
-| Where is leakage-related validation performed? | `src/validation.py::future_permutation_test` |
-| Where is LightGBM created? | `src/training.py::train_lightgbm_model` |
-| Where is the model trained? | `src/training.py`, `model.fit(...)` |
-| Where are forecasts generated during evaluation? | `src/training.py`, `model.predict(...)` |
+| Where are lag features created? | `src/features.py::create_lag_features` |
+| Where is demand proxy created? | `src/decensoring.py::create_demand_proxy` |
+| Where is the holdout created? | `src/validation.py::get_three_month_backtest_split` |
+| Where are baselines evaluated? | `src/validation.py::evaluate_baselines` |
+| Where is leakage checked? | `src/validation.py::future_permutation_test` |
+| Where is LightGBM created and trained? | `src/training.py` |
 | Where are MAE and RMSE calculated? | `src/metrics.py::evaluate_predictions` |
-| Where is reusable inference implemented? | `src/inference.py::predict_demand` |
-| Where is the dashboard CSV built? | `dashboard/build_dashboard_dataset.py` |
-| Where are dashboard metrics currently defined? | `app_utils/config.py` |
-| Where is the model-performance page rendered? | `views/model_performance.py` |
+| Where is the complete pipeline run? | `scripts/run_model_pipeline.py` |
+| Where are prediction artifacts loaded? | `app_utils/model_artifacts.py` |
+| Where is Actual vs Predicted built? | `app_utils/forecast_charts.py` |
+| Where is Forecast Accuracy rendered? | `views/model_performance.py` |

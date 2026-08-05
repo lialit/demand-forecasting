@@ -6,53 +6,33 @@ The repository currently contains a modular local Python pipeline, reproducible 
 
 ## 1. Business objective
 
-Forecast demand at the Product–Dark Store–Hour level and make the result available to inventory planning, replenishment, operations and analytics systems.
+Forecast demand at the Product–Dark Store–Hour level and make approved forecasts available to inventory planning, replenishment, operations and analytics systems.
 
-The production solution should support:
-
-- scheduled demand forecasts;
-- traceable model versions;
-- reliable storage of inputs, outputs and metrics;
-- monitoring of data quality and forecast quality;
-- controlled retraining;
-- integration with ERP, WMS, BI and planning tools.
+The production solution should support scheduled forecasts, traceable model versions, reliable storage, monitoring, controlled retraining and integration with ERP, WMS, BI and planning tools.
 
 ## 2. Recommended Google Cloud architecture
 
-```text
-Source systems
-ERP / POS / WMS / promotions / weather / holidays
-        |
-        v
-Cloud Storage and/or ingestion connectors
-        |
-        v
-BigQuery raw and curated datasets
-        |
-        v
-Data quality and feature preparation
-Dataform / BigQuery SQL / Python jobs
-        |
-        v
-Vertex AI Pipelines
-        |
-        +--> Vertex AI Custom Training
-        |        |
-        |        v
-        |   Vertex AI Model Registry
-        |
-        +--> Evaluation and release checks
-        |
-        v
-Vertex AI Batch Prediction or Cloud Run Job
-        |
-        v
-BigQuery forecast tables
-        |
-        +--> Looker (Google Cloud core)
-        +--> Looker Studio / Data Studio
-        +--> ERP / WMS / replenishment systems
-        +--> APIs and operational applications
+```mermaid
+flowchart LR
+    ERP[ERP / POS] --> ING[Cloud Storage or ingestion connectors]
+    WMS[WMS / inventory] --> ING
+    EXT[Promotions / weather / holidays] --> ING
+    ING --> RAW[BigQuery raw datasets]
+    RAW --> CUR[BigQuery curated and feature tables]
+    CUR --> PIPE[Vertex AI Pipelines]
+    PIPE --> TRAIN[Vertex AI Custom Training]
+    TRAIN --> REG[Vertex AI Model Registry]
+    PIPE --> EVAL[Evaluation and release checks]
+    REG --> PRED[Vertex AI Batch Prediction or Cloud Run Job]
+    EVAL --> PRED
+    PRED --> FC[BigQuery forecast tables]
+    FC --> LOOKER[Looker / Looker Studio]
+    FC --> OPS[ERP / WMS / replenishment]
+    FC --> API[Operational APIs and applications]
+    LOG[Cloud Logging and Monitoring] -. pipeline health .-> PIPE
+    LOG -. job health .-> PRED
+    MON[Quality and drift tables] -. model monitoring .-> CUR
+    MON -. performance feedback .-> PIPE
 ```
 
 ## 3. Why batch forecasting is the default
@@ -66,33 +46,17 @@ Recommended default:
 - write predictions into BigQuery;
 - let downstream systems read the latest approved forecast version.
 
-An online endpoint should be added only when a client system needs predictions synchronously for an individual request.
+An online endpoint should be added only when a client system needs synchronous predictions for individual requests.
 
 ## 4. Data layer
 
 ### Cloud Storage
 
-Use Cloud Storage for:
-
-- raw files received from external systems;
-- exported training datasets;
-- model artifacts and pipeline outputs;
-- temporary batch prediction inputs and outputs;
-- backups and long-term retention where appropriate.
+Use Cloud Storage for raw files, exported training datasets, model and pipeline artifacts, temporary batch inputs/outputs, backups and long-term retention.
 
 ### BigQuery
 
-Use BigQuery as the analytical system of record for:
-
-- historical sales;
-- inventory snapshots;
-- promotions and prices;
-- competitor prices;
-- weather and holiday enrichment;
-- training datasets;
-- forecast outputs;
-- evaluation metrics;
-- monitoring history.
+Use BigQuery as the analytical system of record for sales, inventory, prices, promotions, competitor prices, weather, holidays, training datasets, forecasts, metrics and monitoring history.
 
 Suggested datasets:
 
@@ -119,192 +83,105 @@ created_at
 
 ## 5. Feature preparation
 
-For the current project, feature engineering is implemented in Python. In production, the split between SQL and Python should be chosen deliberately.
-
 Good candidates for BigQuery SQL or Dataform:
 
 - schema normalization;
-- joins between sales, inventory and promotion tables;
+- source joins;
 - calendar dimensions;
-- daily data quality assertions;
-- reusable curated tables.
+- reusable curated tables;
+- data-quality assertions.
 
 Good candidates for Python pipeline components:
 
 - model-specific lag and rolling features;
 - demand proxy logic;
 - training matrices;
-- model evaluation;
-- serialization of custom LightGBM models.
+- evaluation;
+- LightGBM serialization.
 
-Do not introduce a feature store only because it is fashionable. For scheduled batch forecasting, versioned BigQuery feature tables may be sufficient. If a feature store is later required, use the current Vertex AI Feature Store offering and avoid Vertex AI Feature Store Legacy/V1 and deprecated optimized online serving components.
+For scheduled batch forecasting, versioned BigQuery feature tables may be sufficient. A feature store should be introduced only when its operational benefits justify the added complexity.
 
 ## 6. Training and model management
 
 ### Vertex AI Custom Training
 
-Package the current modular Python pipeline into a reproducible training job.
-
-The job should:
-
-1. read a versioned training dataset;
-2. run preprocessing and feature engineering;
-3. perform time-based evaluation;
-4. calculate model and baseline metrics;
-5. run leakage checks;
-6. save the model and metadata;
-7. register an approved model version.
+Package the modular Python pipeline into a reproducible training job that reads a versioned dataset, creates features, evaluates the model and baselines, runs leakage checks, saves metadata and registers an approved model.
 
 ### Vertex AI Model Registry
 
-Use Model Registry to store and govern model versions.
-
 Recommended metadata:
 
-- model name and version;
-- training dataset period;
-- feature schema version;
+- model version;
+- training-data period;
+- feature-schema version;
 - hyperparameters;
 - MAE, RMSE and bias;
 - baseline improvements;
 - approval status;
 - code commit SHA;
-- pipeline run identifier.
+- pipeline run ID.
 
 ## 7. Orchestration
 
-### Recommended default: Vertex AI Pipelines
+Use Vertex AI Pipelines for the core ML lifecycle:
 
-Use Vertex AI Pipelines for the ML workflow:
-
-```text
-prepare data
-  -> build features
-  -> train
-  -> evaluate
-  -> validate
-  -> register model
-  -> generate batch forecasts
-  -> publish outputs
+```mermaid
+flowchart LR
+    A[Prepare data] --> B[Build features]
+    B --> C[Train]
+    C --> D[Evaluate]
+    D --> E{Release checks pass?}
+    E -- No --> F[Reject candidate and alert]
+    E -- Yes --> G[Register model]
+    G --> H[Generate batch forecasts]
+    H --> I[Publish BigQuery outputs]
 ```
 
-### Lightweight scheduling
+For lightweight schedules, Cloud Scheduler can trigger Workflows, Cloud Run Jobs or a Vertex AI Pipeline run.
 
-For simple schedules, use Cloud Scheduler to trigger one of:
-
-- Workflows;
-- a Cloud Run Job;
-- a Vertex AI Pipeline run.
-
-### Complex Airflow orchestration
-
-Use Managed Service for Apache Airflow only when there are complex cross-system dependencies that justify Airflow. For new implementations, prefer Cloud Composer 3. Do not design a new solution around Cloud Composer 1, which is approaching end of life.
+Use Cloud Composer 3 only when complex Airflow dependencies justify it. Do not design new deployments around Cloud Composer 1.
 
 ## 8. Prediction and serving
 
-### Batch option
+Preferred batch options:
 
-Preferred for this project:
+- Vertex AI Batch Prediction when model packaging and serving containers fit the workflow;
+- Cloud Run Jobs when custom Python inference and direct BigQuery writes are operationally simpler.
 
-- Vertex AI Batch Prediction when the registered model and serving container fit the workflow;
-- Cloud Run Jobs when custom Python inference and direct BigQuery writes provide a simpler implementation.
-
-The choice should be validated in a small proof of concept because custom LightGBM packaging, input format, cost and operational simplicity may differ by client environment.
-
-### Online option
-
-Use a Vertex AI endpoint or Cloud Run service only when a client application needs low-latency predictions on demand.
+Use a Vertex AI endpoint or Cloud Run service only when low-latency predictions are required.
 
 ## 9. BI and downstream use
 
-### Looker (Google Cloud core)
+### Looker
 
-Recommended for enterprise BI when the client needs:
-
-- governed metric definitions;
-- LookML modelling;
-- robust access control;
-- embedded analytics;
-- scheduled delivery and alerts;
-- stronger Google Cloud administration integration.
+Recommended when clients need governed metric definitions, LookML, robust access controls, embedded analytics and enterprise administration.
 
 ### Looker Studio / Data Studio
 
-Suitable for:
-
-- rapid reporting;
-- lightweight self-service dashboards;
-- prototypes;
-- simple reports over prepared BigQuery tables.
-
-Google documentation currently presents the self-service product under Data Studio naming in some updated pages. To reduce documentation risk, implementation documents should refer to the product as `Looker Studio / Data Studio` until the client's licensed product and current Google naming are confirmed.
+Suitable for rapid reporting, prototypes and lightweight self-service dashboards over prepared BigQuery tables.
 
 ## 10. Monitoring
 
 Monitor four layers:
 
-### Pipeline health
+- **Pipeline health:** run status, duration, failed steps, missing or stale outputs.
+- **Data quality:** schema changes, duplicates, missing hours, invalid values and category changes.
+- **Data and prediction drift:** demand, prices, promotions, stock-outs, temperature, app clicks and predicted-demand distributions.
+- **Model quality:** MAE, RMSE, bias and segment-level performance after actual demand becomes available.
 
-- scheduled run success;
-- duration;
-- failed steps;
-- missing outputs;
-- stale forecasts.
+Use Cloud Logging, Cloud Monitoring, alerting policies and BigQuery monitoring tables.
 
-Use Cloud Logging, Cloud Monitoring and alerting policies.
+## 11. Retraining and release policy
 
-### Data quality
+Retraining may be scheduled and condition-based. A candidate should be promoted only when it passes data-quality, leakage, performance and business-acceptance checks.
 
-- missing required columns;
-- invalid timestamps;
-- duplicate store-product-hour keys;
-- missing hours;
-- abnormal price or inventory values;
-- unexpected category values.
+Rollback should keep the previous approved model and forecast version available.
 
-### Data and prediction drift
+See [`RETRAINING_AND_MONITORING.md`](RETRAINING_AND_MONITORING.md) for the detailed policy.
 
-- average demand;
-- price distribution;
-- promotion frequency;
-- stock-out frequency;
-- temperature;
-- app clicks;
-- predicted demand distribution.
+## 12. Security and governance
 
-### Model quality
-
-When actual demand becomes available, calculate:
-
-- MAE;
-- RMSE;
-- forecast bias;
-- metrics by store, product and demand segment;
-- comparison with baseline forecasts.
-
-## 11. Security and governance
-
-Recommended controls:
-
-- separate development, staging and production projects;
-- least-privilege service accounts;
-- Secret Manager for credentials;
-- BigQuery row-level or column-level security where required;
-- CMEK only when client policy requires customer-managed keys;
-- private networking and VPC Service Controls for regulated workloads;
-- audit logging;
-- explicit retention policies;
-- model and dataset lineage.
-
-## 12. Scalability
-
-The architecture scales by separating storage, transformation, training and serving.
-
-- BigQuery handles large historical tables.
-- Vertex AI training jobs scale compute independently.
-- batch prediction avoids permanent endpoint cost.
-- Looker reads governed warehouse data.
-- downstream applications consume versioned forecast tables.
+Recommended controls include separate environments, least-privilege service accounts, Secret Manager, BigQuery row/column security where needed, audit logging, explicit retention, lineage and private networking for regulated workloads.
 
 ## 13. Current implementation versus target state
 
@@ -313,22 +190,15 @@ The architecture scales by separating storage, transformation, training and serv
 | Data source | Local CSV | Cloud Storage and BigQuery |
 | Pipeline | Local Python script | Vertex AI Pipeline |
 | Training | Local LightGBM | Vertex AI Custom Training |
-| Model storage | Local pickle artifact | Vertex AI Model Registry |
+| Model governance | Local artifacts | Vertex AI Model Registry |
 | Prediction | Local script | Scheduled batch prediction |
 | Forecast output | CSV artifact | Versioned BigQuery table |
 | Dashboard | Streamlit | Streamlit and/or Looker |
-| Monitoring | Documented proposal | Cloud Monitoring plus quality tables |
+| Monitoring | Documented proposal | Cloud Monitoring and quality tables |
 | Retraining | Manual | Scheduled and condition-based |
 
 ## 14. Product lifecycle notes
 
-The architecture intentionally avoids deprecated or legacy components:
-
-- Legacy AI Platform Training and Prediction;
-- Legacy AI Platform Pipelines;
-- Vertex AI Workbench managed and user-managed notebook types that reached their migration deadlines;
-- Vertex AI Feature Store Legacy/V1;
-- deprecated Feature Store optimized online serving;
-- Cloud Composer 1 for new deployments.
+The architecture avoids legacy or deprecated components such as Legacy AI Platform services, Vertex AI Feature Store Legacy/V1, deprecated Workbench notebook types and Cloud Composer 1 for new deployments.
 
 The exact Google Cloud product matrix should be reviewed before every client implementation because service names, launch stages and recommended patterns can change.
