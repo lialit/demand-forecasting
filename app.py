@@ -13,28 +13,28 @@ st.set_page_config(
 apply_app_style()
 
 pages = {
-    "Dashboard": [
+    "Business Dashboard": [
         st.Page(
             "views/executive.py",
-            title="Executive Overview",
+            title="Business Overview",
             icon=":material/dashboard:",
             default=True,
         ),
         st.Page(
             "views/model_performance.py",
-            title="Model Performance",
+            title="Forecast Accuracy",
             icon=":material/model_training:",
         ),
         st.Page(
             "views/business_insights.py",
-            title="Business Insights",
+            title="Demand Drivers",
             icon=":material/insights:",
         ),
     ],
-    "Project": [
+    "Documentation": [
         st.Page(
             "views/about.py",
-            title="About the Project",
+            title="How It Works",
             icon=":material/info:",
         ),
     ],

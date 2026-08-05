@@ -2,7 +2,6 @@ import streamlit as st
 
 from app_utils.charts import (
     hourly_sales_chart,
-    promotion_impact_chart,
     sales_trend_chart,
     stockout_by_store_chart,
 )
@@ -34,8 +33,8 @@ filters = render_sidebar_filters(data)
 filtered = apply_filters(data, filters)
 
 render_page_header(
-    "Retail Demand Forecasting Dashboard",
-    "Executive overview of demand, promotions and inventory risk",
+    "Business Overview",
+    "A quick view of demand volume, stock-out risk and demand timing",
 )
 
 if filtered.empty:
@@ -44,104 +43,58 @@ if filtered.empty:
 
 metrics = calculate_executive_metrics(filtered)
 sales_delta = period_delta(filtered, "sales", "sum")
-stockout_delta = period_delta(
-    filtered,
-    "is_stockout",
-    "mean",
-)
+stockout_delta = period_delta(filtered, "is_stockout", "mean")
 
-sales_delta_text = (
-    f"{sales_delta:+.1%}"
-    if sales_delta is not None
-    else None
-)
-
+sales_delta_text = f"{sales_delta:+.1%}" if sales_delta is not None else None
 stockout_delta_text = (
-    f"{stockout_delta:+.1%}"
-    if stockout_delta is not None
-    else None
+    f"{stockout_delta:+.1%}" if stockout_delta is not None else None
 )
 
-columns = st.columns(5)
+st.markdown("### What is happening now?")
+columns = st.columns(3)
 
 columns[0].metric(
-    label="💰 Total Sales",
-    value=compact_number(metrics.total_sales),
+    label="Total demand served",
+    value=f"{compact_number(metrics.total_sales)} units",
     delta=sales_delta_text,
-    delta_description="selected-period trend",
-    chart_data=daily_metric_series(
-        filtered,
-        "sales",
-        "sum",
-    ),
+    delta_description="versus the previous comparable period",
+    chart_data=daily_metric_series(filtered, "sales", "sum"),
     chart_type="area",
     border=True,
     width="stretch",
-    height="stretch",
 )
 
 columns[1].metric(
-    label="📈 Average Sales",
-    value=f"{metrics.average_sales:.2f}",
-    chart_data=daily_metric_series(
-        filtered,
-        "sales",
-        "mean",
+    label="Typical demand per record",
+    value=f"{metrics.average_sales:.2f} units",
+    help=(
+        "Average observed sales for one store-product-hour record in the "
+        "selected period."
     ),
+    chart_data=daily_metric_series(filtered, "sales", "mean"),
     chart_type="line",
     border=True,
     width="stretch",
-    height="stretch",
 )
 
 columns[2].metric(
-    label="⚠️ Stock-out Rate",
+    label="Stock-out risk",
     value=f"{metrics.stockout_rate:.2%}",
     delta=stockout_delta_text,
-    delta_description="selected-period trend",
+    delta_description="versus the previous comparable period",
     delta_color="inverse",
-    chart_data=daily_metric_series(
-        filtered,
-        "is_stockout",
-        "mean",
+    help=(
+        "Share of records where stock on hand was zero or below. Lower is "
+        "better because stock-outs may hide unmet demand."
     ),
+    chart_data=daily_metric_series(filtered, "is_stockout", "mean"),
     chart_type="line",
     border=True,
     width="stretch",
-    height="stretch",
 )
 
-columns[3].metric(
-    label="🎁 Promotion Rate",
-    value=f"{metrics.promotion_rate:.2%}",
-    chart_data=daily_metric_series(
-        filtered,
-        "is_promo",
-        "mean",
-    ),
-    chart_type="bar",
-    border=True,
-    width="stretch",
-    height="stretch",
-)
-
-columns[4].metric(
-    label="🌡️ Average Temperature",
-    value=f"{metrics.average_temperature:.1f} °C",
-    chart_data=daily_metric_series(
-        filtered,
-        "temperature",
-        "mean",
-    ),
-    chart_type="line",
-    border=True,
-    width="stretch",
-    height="stretch",
-)
-
-st.write("")
-
-left, right = st.columns(2)
+st.markdown("### Where should attention go?")
+left, right = st.columns([1.35, 1])
 
 with left:
     st.plotly_chart(
@@ -151,25 +104,25 @@ with left:
 
 with right:
     st.plotly_chart(
-        hourly_sales_chart(filtered),
-        width="stretch",
-    )
-
-left, right = st.columns(2)
-
-with left:
-    st.plotly_chart(
-        promotion_impact_chart(filtered),
-        width="stretch",
-    )
-
-with right:
-    st.plotly_chart(
         stockout_by_store_chart(filtered),
         width="stretch",
     )
 
-st.subheader("Key observations")
-render_insight_cards(
-    generate_business_insights(filtered)
+st.markdown("### When does demand occur?")
+st.plotly_chart(
+    hourly_sales_chart(filtered),
+    width="stretch",
 )
+
+st.markdown("### Recommended reading")
+render_insight_cards(generate_business_insights(filtered)[:3])
+
+with st.expander("Additional context", expanded=False):
+    st.markdown(
+        f"""
+        - Promotion share in the selected period: **{metrics.promotion_rate:.2%}**
+        - Average temperature: **{metrics.average_temperature:.1f} °C**
+        - These figures describe the selected historical period; they are not
+          themselves future forecasts.
+        """
+    )
