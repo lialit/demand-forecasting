@@ -23,7 +23,7 @@ from app_utils.model_artifacts import (
 
 
 render_page_header(
-    "Model Performance",
+    "Forecast Accuracy",
     "How closely the forecast follows demand and what the result means for business",
 )
 
@@ -111,6 +111,30 @@ columns[3].metric(
     help="Reduction in RMSE relative to the best simple baseline.",
 )
 
+with st.expander("Estimated business impact", expanded=True):
+    st.markdown(
+        f"""
+        The model's average error of approximately **{model_metrics['MAE']:.2f}
+        units per store-product-hour** is substantially lower than the simple
+        planning baselines. This indicates that the forecast can provide a more
+        useful demand signal for replenishment and inventory planning.
+
+        - For stable and higher-volume products, this accuracy may be suitable
+          for supporting routine replenishment decisions.
+        - For low-volume products, an error of two units may still be material,
+          so quality should be reviewed by product and store.
+        - Persistent underforecasting may increase stock-out and lost-sales risk.
+        - Persistent overforecasting may increase excess inventory, waste and
+          tied-up working capital.
+        - The forecast should support operational judgement rather than replace
+          replenishment constraints and business rules.
+
+        A reliable monetary estimate requires product margin, shelf life, waste
+        cost, stock-out cost, service-level targets and replenishment constraints.
+        These inputs are not present in the synthetic dataset.
+        """
+    )
+
 if artifacts_available:
     st.subheader("Actual demand vs forecast")
     st.caption(
@@ -119,16 +143,11 @@ if artifacts_available:
     )
 
     filter_left, filter_middle, filter_right = st.columns(3)
-
     store_options = sorted(predictions["store_id"].dropna().unique())
     selected_store = filter_left.selectbox("Dark store", store_options)
 
-    store_predictions = predictions[
-        predictions["store_id"] == selected_store
-    ]
-    product_options = sorted(
-        store_predictions["product_id"].dropna().unique()
-    )
+    store_predictions = predictions[predictions["store_id"] == selected_store]
+    product_options = sorted(store_predictions["product_id"].dropna().unique())
     selected_product = filter_middle.selectbox("Product", product_options)
     aggregation = filter_right.radio(
         "Time aggregation",
@@ -171,9 +190,7 @@ if artifacts_available:
         local_columns[2].metric(
             "Forecast bias",
             f"{mean_bias:+.2f} units",
-            help=(
-                "Positive means overforecasting; negative means underforecasting."
-            ),
+            help="Positive means overforecasting; negative means underforecasting.",
         )
 
         bias_title, bias_text = interpret_bias(mean_bias)
@@ -183,22 +200,16 @@ if artifacts_available:
 st.write("")
 st.subheader("Comparison with simple planning rules")
 st.caption(
-    "The baselines represent forecasts that simply reuse demand from the "
-    "previous hour or previous day. Lower bars are better."
+    "The baselines simply reuse demand from the previous hour or previous day. "
+    "Lower bars are better."
 )
 left, right = st.columns(2)
 
 with left:
-    st.plotly_chart(
-        model_comparison_chart(results, "MAE"),
-        width="stretch",
-    )
+    st.plotly_chart(model_comparison_chart(results, "MAE"), width="stretch")
 
 with right:
-    st.plotly_chart(
-        model_comparison_chart(results, "RMSE"),
-        width="stretch",
-    )
+    st.plotly_chart(model_comparison_chart(results, "RMSE"), width="stretch")
 
 if artifacts_available:
     leakage_result = metrics_payload.get("leakage_test", {})
@@ -225,9 +236,7 @@ with st.expander("What these results do and do not prove", expanded=True):
           under-predicts demand.
         - The current validation uses the **last three months as one time-based
           holdout period**. It is not a multi-fold walk-forward evaluation.
-        - Accuracy metrics alone do not calculate financial savings. A monetary
-          business case requires product margin, waste cost, stock-out cost and
-          replenishment constraints.
+        - Accuracy metrics alone do not calculate financial savings.
         - The dataset is synthetic, so the result demonstrates the method rather
           than guaranteed production performance on a client's real operations.
         """
