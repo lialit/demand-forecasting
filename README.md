@@ -147,16 +147,15 @@ The current validation is not a multi-fold walk-forward evaluation.
 
 ## Dashboard Features
 
-### Executive Overview
+### Business Overview
 
-- business KPI cards;
-- daily sales trend;
-- demand patterns by hour;
-- promotion impact;
-- stock-out rate by store;
+- demand volume and trend;
+- typical demand level;
+- stock-out risk;
+- timing patterns;
 - interactive filters.
 
-### Model Performance
+### Forecast Accuracy
 
 - Actual vs Predicted demand chart;
 - dark-store and product filters;
@@ -167,13 +166,21 @@ The current validation is not a multi-fold walk-forward evaluation.
 - leakage-test result;
 - model limitations and retraining guidance.
 
-### Business Insights
+### Demand Drivers
 
 - weekday demand patterns;
 - temperature impact;
 - competitor-price analysis;
+- promotion relationship;
 - observed sales versus demand proxy;
 - hidden-demand estimate during stock-outs.
+
+### How It Works
+
+- plain-language pipeline explanation;
+- current model and validation design;
+- limitations;
+- code navigation.
 
 ---
 
@@ -229,20 +236,34 @@ Exact alert thresholds must be agreed with the client and tied to business impac
 
 ---
 
-## Production Integration Direction
+## Google Cloud Production Direction
 
-A future Google Cloud implementation could use:
+The recommended target architecture is designed for a Google Cloud environment and separates the current local prototype from the future production implementation.
 
-- **BigQuery** for sales history, features and forecast tables;
-- **Cloud Storage** for source files and model artifacts;
-- **Vertex AI Training** for managed model training;
-- **Vertex AI Model Registry** for model versions;
-- **Vertex AI Batch Prediction** for scheduled forecasts;
-- **Cloud Run** for an API or orchestration service;
-- **Cloud Scheduler** for recurring forecast and retraining jobs;
-- **Cloud Monitoring** for pipeline failures and model-performance alerts.
+Core Google Cloud services:
 
-For regular inventory planning, batch prediction is likely more appropriate than a permanently running online endpoint.
+- **BigQuery** for curated inputs, feature tables, forecasts and monitoring history;
+- **Cloud Storage** for raw files and artifacts;
+- **Artifact Registry** for immutable container images;
+- **Vertex AI Custom Training** for managed LightGBM training;
+- **Vertex AI Model Registry** for approved model versions;
+- **Vertex AI Pipelines** for repeatable ML orchestration;
+- **Cloud Run Jobs** or **Vertex AI Batch Prediction** for scheduled forecasts;
+- **Cloud Scheduler** and **Workflows** for lightweight orchestration;
+- **Cloud Logging** and **Cloud Monitoring** for operational visibility;
+- **Looker (Google Cloud core)** for governed enterprise analytics;
+- **Looker Studio / Data Studio** for lightweight self-service reporting.
+
+For regular inventory planning, batch prediction is more appropriate than a permanently running online endpoint unless a client application requires synchronous low-latency forecasts.
+
+Detailed production documentation:
+
+- [`docs/PRODUCTION_ARCHITECTURE.md`](docs/PRODUCTION_ARCHITECTURE.md) — recommended Google Cloud architecture and data flow;
+- [`docs/GOOGLE_CLOUD_DEPLOYMENT.md`](docs/GOOGLE_CLOUD_DEPLOYMENT.md) — practical deployment sequence and service choices;
+- [`docs/MLOPS_ROADMAP.md`](docs/MLOPS_ROADMAP.md) — evolution from the current prototype to a governed production platform;
+- [`docs/RETRAINING_AND_MONITORING.md`](docs/RETRAINING_AND_MONITORING.md) — monitoring, drift, retraining, promotion and rollback strategy.
+
+The production design avoids legacy or deprecated components such as Legacy AI Platform services, Vertex AI Feature Store Legacy/V1, deprecated Workbench notebook types and Cloud Composer 1 for new deployments.
 
 ---
 
@@ -275,7 +296,11 @@ DemandForecasting/
 ├── dashboard/
 │   └── build_dashboard_dataset.py
 ├── docs/
-│   └── CURRENT_SOLUTION_GUIDE.md
+│   ├── CURRENT_SOLUTION_GUIDE.md
+│   ├── PRODUCTION_ARCHITECTURE.md
+│   ├── GOOGLE_CLOUD_DEPLOYMENT.md
+│   ├── MLOPS_ROADMAP.md
+│   └── RETRAINING_AND_MONITORING.md
 ├── scripts/
 │   └── run_model_pipeline.py
 ├── src/
