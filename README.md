@@ -5,220 +5,256 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Open Dashboard](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://demand-forecasting-nxky4bbby5tkusdxybtn43.streamlit.app/)
 
-Production-ready machine learning solution for forecasting hourly retail demand at the **Product–Dark Store–Hour** level.
+A production-oriented machine learning prototype for forecasting hourly retail demand at the **Product–Dark Store–Hour** level.
 
-The project demonstrates a complete end-to-end ML workflow:
+The repository demonstrates an end-to-end forecasting workflow with modular data preparation, feature engineering, a conservative demand proxy for stock-out periods, time-based validation, reproducible model artifacts and an interactive Streamlit dashboard.
 
-- Exploratory Data Analysis
-- Feature Engineering
-- Target Reconstruction
-- Leakage-safe Validation
-- Walk-Forward Backtesting
-- Interactive Streamlit Dashboard
-- Business Executive Summary
+> The project uses synthetic data. Results demonstrate the approach and code structure, not guaranteed production performance for a real retailer.
 
 ---
 
-## 🚀 Live Interactive Dashboard
+## Live Interactive Dashboard
 
 [Open the Streamlit application](https://demand-forecasting-nxky4bbby5tkusdxybtn43.streamlit.app/)
-
-Click the dashboard preview below to open the live application.
 
 [![Retail Dashboard](images/dashboard_overview.png)](https://demand-forecasting-nxky4bbby5tkusdxybtn43.streamlit.app/)
 
 ---
 
-## Table of Contents
-
-- [Business Problem](#business-problem)
-- [Solution Overview](#solution-overview)
-- [Key Achievements](#key-achievements)
-- [Machine Learning Pipeline](#machine-learning-pipeline)
-- [Model Results](#model-results)
-- [Dashboard Features](#dashboard-features)
-- [Project Preview](#project-preview)
-- [Repository Structure](#repository-structure)
-- [Technology Stack](#technology-stack)
-- [Reproducibility](#reproducibility)
-- [Business Executive Summary](#business-executive-summary)
-- [Future Improvements](#future-improvements)
-- [Author](#author)
-
----
-
 ## Business Problem
 
-Fast grocery delivery services require accurate forecasts to maintain enough inventory in each local dark store while avoiding overstock.
+Fast grocery delivery services need enough inventory in each local dark store to satisfy demand without creating excessive stock and waste.
 
-Inaccurate forecasts may lead to:
+Forecast errors may lead to:
 
-- Lost sales
-- Product shortages
-- Excess inventory
-- Product waste
-- Financial losses for the retailer and suppliers
+- lost sales and customer dissatisfaction;
+- product shortages;
+- unnecessary safety stock;
+- excess inventory and waste;
+- inefficient purchasing and replenishment decisions.
 
-The objective is to forecast demand at the **Product–Dark Store–Hour** level for medium-term planning.
+The solution forecasts demand for each **product, dark store and hour**.
 
 ---
 
-## Solution Overview
+## Current Solution Flow
 
 ```text
-Raw Data
+Raw CSV
    ↓
-EDA and Cleaning
+Schema validation and feature-specific cleaning
    ↓
-Feature Engineering
+Time, price, lag and rolling features
    ↓
-Target Reconstruction
+Conservative demand proxy for stock-out periods
    ↓
-LightGBM Training
+Three-month time-based holdout
    ↓
-Walk-Forward Backtesting
+LightGBM training and baseline comparison
    ↓
-Future Permutation Test
+MAE, RMSE and leakage check
    ↓
-Interactive Dashboard
+Model metrics and prediction artifacts
+   ↓
+Actual vs Predicted Streamlit dashboard
 ```
 
----
-
-## Key Achievements
-
-- Built a modular production-ready ML pipeline
-- Reduced MAE by **72.15%**
-- Reduced RMSE by **58.63%**
-- Implemented leakage-safe validation
-- Developed an interactive analytics dashboard
-- Delivered an end-to-end forecasting solution
+A detailed description of every module is available in [`docs/CURRENT_SOLUTION_GUIDE.md`](docs/CURRENT_SOLUTION_GUIDE.md).
 
 ---
 
-## Machine Learning Pipeline
-
-### Data preparation
-
-- Schema validation
-- Missing-value analysis
-- Median imputation
-- Time-series sorting
-- Stock-out detection
-
-### Feature engineering
-
-- Sales lag: 1 hour
-- Sales lag: 24 hours
-- Sales lag: 168 hours
-- Rolling mean over 24 hours
-- Rolling standard deviation over 24 hours
-- Calendar features
-- Promotion indicators
-- Weather data
-- Competitor prices
-- Inventory data
-- Holiday and local-event factors
-
-### Target reconstruction
-
-Observed sales may underestimate real demand during stock-out periods. A demand proxy was created to estimate hidden demand during censored observations.
-
-### Model
-
-The final forecasting model is a **LightGBM Regressor**, selected because it:
-
-- Performs well on tabular data
-- Trains quickly
-- Captures nonlinear relationships
-- Handles mixed business features
-- Outperformed the naive baselines
-
-### Validation
-
-The model was evaluated using:
-
-- Time-based train/test split
-- Three-month walk-forward backtest
-- Future Permutation Test
-
-The leakage test confirmed that historical lag and rolling features do not depend on future target values.
-
----
-
-## Model Results
+## Key Results
 
 | Model | MAE | RMSE |
 |---|---:|---:|
-| Naive Forecast — previous hour | 8.72 | 17.07 |
-| Seasonal Naive Forecast — previous day | 7.66 | 15.07 |
+| Naive forecast — previous hour | 8.72 | 17.07 |
+| Seasonal naive forecast — previous day | 7.66 | 15.07 |
 | **LightGBM** | **2.13** | **6.23** |
 
-### Improvement over the best baseline
+Compared with the best simple baseline:
 
-| Metric | Improvement |
-|---|---:|
-| MAE | **72.15%** |
-| RMSE | **58.63%** |
+- MAE was reduced by **72.15%**;
+- RMSE was reduced by **58.63%**.
+
+### Business interpretation
+
+- **MAE 2.13** means that the model misses actual demand by about 2.13 product units on average for each evaluated store-product-hour observation.
+- **RMSE 6.23** is higher because some periods contain larger errors, such as demand spikes or unusual operating conditions.
+- The improvement over the baseline shows that the model adds substantial predictive value compared with simply reusing demand from the previous hour or previous day.
+- These metrics describe forecast accuracy, not direct financial savings. A monetary business case requires product margin, waste cost, stock-out cost and replenishment constraints.
+
+A good average result does not guarantee equal quality for every product or store. The dashboard therefore includes filters and local metrics for individual store-product series.
+
+---
+
+## Data Preparation
+
+The preprocessing strategy is feature-specific:
+
+- missing temperature is filled with the global median;
+- missing competitor price is replaced with the retailer's own price;
+- missing app clicks, holiday and delay values use neutral defaults;
+- rows are sorted chronologically by store, product and timestamp;
+- `is_stockout` is set when `stock_on_hand <= 0`.
+
+This is not a universal median-imputation pipeline.
+
+---
+
+## Feature Engineering
+
+The model uses:
+
+- store and product identifiers;
+- hour, weekday, month and weekend indicators;
+- price difference and price ratio;
+- promotion, weather, holiday and local-event factors;
+- app clicks, delivery delay and stock level;
+- sales lags of 1, 24 and 168 hours;
+- 24-hour rolling mean and standard deviation;
+- stock-out indicator.
+
+Lag and rolling features use shifted historical sales so the current target is not used directly in its own features.
+
+---
+
+## Demand Proxy
+
+Observed sales may underestimate true demand when an item is unavailable.
+
+For stock-out observations, the project creates a conservative proxy using the greater of:
+
+- observed sales;
+- the recent 24-hour rolling mean.
+
+This is a practical heuristic, not a guaranteed reconstruction of true hidden demand.
+
+---
+
+## Validation
+
+The current modular implementation uses:
+
+- one **three-month time-based holdout**;
+- previous-hour and previous-day baselines;
+- a Future Permutation Test for lag and rolling features.
+
+The permutation test checks that changing future sales values does not alter historical lag and rolling features. It does not prove that every possible form of data leakage is absent.
+
+The current validation is not a multi-fold walk-forward evaluation.
 
 ---
 
 ## Dashboard Features
 
-The Streamlit dashboard includes four interactive pages.
-
 ### Executive Overview
 
-- Executive KPI cards
-- Daily sales trend
-- Average sales by hour
-- Promotion impact
-- Stock-out rate by store
-- Automated business observations
-- Interactive filters
+- business KPI cards;
+- daily sales trend;
+- demand patterns by hour;
+- promotion impact;
+- stock-out rate by store;
+- interactive filters.
 
 ### Model Performance
 
-- Baseline comparison
-- MAE and RMSE
-- Improvement metrics
-- Leakage-test result
-- Validation explanation
+- Actual vs Predicted demand chart;
+- dark-store and product filters;
+- hourly or daily aggregation;
+- live MAE, RMSE and forecast bias;
+- business-facing explanations of overforecast and underforecast risk;
+- baseline comparison;
+- leakage-test result;
+- model limitations and retraining guidance.
 
 ### Business Insights
 
-- Weekday demand patterns
-- Temperature impact
-- Competitor-price analysis
-- Observed sales versus demand proxy
-- Hidden-demand estimation
-
-### About the Project
-
-- Business objective
-- Project architecture
-- Main results
-- Technology overview
+- weekday demand patterns;
+- temperature impact;
+- competitor-price analysis;
+- observed sales versus demand proxy;
+- hidden-demand estimate during stock-outs.
 
 ---
 
-## Project Preview
+## Reproducibility
 
-### Model Comparison
+Clone the repository and install dependencies:
 
-![Model Comparison](images/comparison.png)
+```bash
+git clone https://github.com/lialit/demand-forecasting.git
+cd demand-forecasting
+pip install -r requirements.txt
+```
 
-### Pipeline Diagram
+Generate model metrics and prediction artifacts:
 
-![Pipeline Diagram](images/pipeline_diagram.png)
+```bash
+python scripts/run_model_pipeline.py
+```
 
-### Daily Sales
+This creates:
 
-![Daily Sales](images/daily_sales.png)
+```text
+artifacts/model_metrics.json
+artifacts/model_predictions.csv
+```
 
-### Missing Values
+Generate the historical dashboard dataset:
 
-![Missing Values](images/missing_values.png)
+```bash
+python dashboard/build_dashboard_dataset.py
+```
+
+Launch the Streamlit application:
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## When to Review or Retrain the Model
+
+A model review or retraining run should be considered when:
+
+- MAE or RMSE increases materially against the approved baseline;
+- forecast bias becomes persistently positive or negative;
+- demand, prices, promotions, traffic or stock distributions change;
+- new stores, products or operating regions appear;
+- seasonal or customer behavior changes after campaigns or market events;
+- a scheduled retraining date is reached.
+
+Exact alert thresholds must be agreed with the client and tied to business impact. A fixed percentage such as 15–20% may be a useful initial investigation threshold, but it is not universal.
+
+---
+
+## Production Integration Direction
+
+A future Google Cloud implementation could use:
+
+- **BigQuery** for sales history, features and forecast tables;
+- **Cloud Storage** for source files and model artifacts;
+- **Vertex AI Training** for managed model training;
+- **Vertex AI Model Registry** for model versions;
+- **Vertex AI Batch Prediction** for scheduled forecasts;
+- **Cloud Run** for an API or orchestration service;
+- **Cloud Scheduler** for recurring forecast and retraining jobs;
+- **Cloud Monitoring** for pipeline failures and model-performance alerts.
+
+For regular inventory planning, batch prediction is likely more appropriate than a permanently running online endpoint.
+
+---
+
+## Current Limitations
+
+- synthetic source data;
+- one three-month holdout rather than multi-fold walk-forward validation;
+- heuristic demand proxy;
+- manually selected LightGBM parameters;
+- limited cold-start handling;
+- no automated drift monitoring or retraining pipeline;
+- no production model registry, CI/CD or client-system integration yet.
 
 ---
 
@@ -227,117 +263,35 @@ The Streamlit dashboard includes four interactive pages.
 ```text
 DemandForecasting/
 ├── app.py
-├── .streamlit/
-│   └── config.toml
 ├── app_utils/
+│   ├── business_interpretation.py
 │   ├── charts.py
-│   ├── components.py
-│   ├── config.py
-│   ├── filters.py
-│   ├── insights.py
-│   ├── loader.py
-│   ├── metrics.py
-│   └── theme.py
-├── views/
-│   ├── executive.py
-│   ├── model_performance.py
-│   ├── business_insights.py
-│   └── about.py
+│   ├── forecast_charts.py
+│   ├── model_artifacts.py
+│   └── ...
+├── artifacts/
+│   ├── model_metrics.json
+│   └── model_predictions.csv
 ├── dashboard/
-│   ├── build_dashboard_dataset.py
-│   └── demand_dashboard.csv
-├── notebooks/
+│   └── build_dashboard_dataset.py
+├── docs/
+│   └── CURRENT_SOLUTION_GUIDE.md
+├── scripts/
+│   └── run_model_pipeline.py
 ├── src/
-├── models/
-├── reports/
-├── images/
+│   ├── data_loading.py
+│   ├── preprocessing.py
+│   ├── features.py
+│   ├── decensoring.py
+│   ├── validation.py
+│   ├── training.py
+│   ├── metrics.py
+│   └── inference.py
+├── views/
+├── notebooks/
 ├── requirements.txt
-├── README.md
-└── LICENSE
+└── README.md
 ```
-
----
-
-## Technology Stack
-
-### Machine learning
-
-- Python
-- Pandas
-- NumPy
-- Scikit-learn
-- LightGBM
-
-### Visualization and application
-
-- Plotly
-- Streamlit
-- Matplotlib
-
-### Development
-
-- Jupyter Notebook
-- Git
-- GitHub
-
----
-
-## Reproducibility
-
-Clone the repository:
-
-```bash
-git clone https://github.com/lialit/demand-forecasting.git
-cd demand-forecasting
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Generate the dashboard dataset:
-
-```bash
-python dashboard/build_dashboard_dataset.py
-```
-
-Launch the application:
-
-```bash
-streamlit run app.py
-```
-
----
-
-## Business Executive Summary
-
-The solution combines demand reconstruction, time-aware validation and a high-performance gradient-boosting model.
-
-Key decisions:
-
-- Median imputation was used because it is robust to outliers.
-- Stock-out periods were adjusted using a demand proxy.
-- Time-based backtesting reproduced a realistic forecasting scenario.
-- MAE was selected for interpretable average error.
-- RMSE was used to penalize large and financially costly mistakes.
-- LightGBM substantially outperformed both naive baselines.
-
----
-
-## Future Improvements
-
-Potential production enhancements:
-
-- SHAP explainability
-- MLflow experiment tracking
-- Docker deployment
-- GitHub Actions CI/CD
-- Automated model retraining
-- Data-drift detection
-- Real-time forecast monitoring
-- REST API for inference
 
 ---
 

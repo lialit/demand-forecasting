@@ -50,7 +50,7 @@ def train_lightgbm_model(
     X_train: pd.DataFrame,
     y_train: pd.Series,
 ) -> lgb.LGBMRegressor:
-    """Train LightGBM regression model."""
+    """Train the current LightGBM regression model."""
     model = lgb.LGBMRegressor(
         objective="regression",
         n_estimators=500,
@@ -70,7 +70,7 @@ def train_and_evaluate(
     test_df: pd.DataFrame,
     target_col: str = "demand_proxy",
 ):
-    """Train model, evaluate it and return predictions."""
+    """Train the model, evaluate it and return row-level forecasts."""
     X_train, y_train, X_test, y_test = get_feature_target_data(
         train_df,
         test_df,
@@ -83,8 +83,13 @@ def train_and_evaluate(
     metrics = evaluate_predictions(y_test, predictions)
 
     prediction_df = test_df[
-        ["timestamp", "store_id", "product_id", target_col]
+        ["timestamp", "store_id", "product_id"]
     ].copy()
-    prediction_df["prediction"] = predictions
+    prediction_df["actual_demand"] = y_test.to_numpy()
+    prediction_df["predicted_demand"] = predictions
+    prediction_df["forecast_error"] = (
+        prediction_df["predicted_demand"]
+        - prediction_df["actual_demand"]
+    )
 
     return model, metrics, prediction_df
